@@ -8,61 +8,37 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install ALL dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autoconf \
-          automake \
-          libtool \
-          pkg-config \
           cmake \
-          # کتابخانه‌های گرافیکی
+          pkg-config \
+          git \
+          # کتابخانه‌های SDL2
           libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-ttf-dev \
+          libsdl2-mixer-dev \
+          # کتابخانه‌های OpenGL
           libgl1-mesa-dev \
           libglu1-mesa-dev \
           libglew-dev \
           # کتابخانه‌های صوتی
           libopenal-dev \
-          libalut-dev \
           libvorbis-dev \
-          libflac-dev \
-          # کتابخانه‌های چندرسانه‌ای
-          libavcodec-dev \
-          libavformat-dev \
-          libavutil-dev \
-          libswscale-dev \
-          # کتابخانه‌های سیستم
-          libx11-dev \
-          libxrandr-dev \
-          libxi-dev \
-          libxcursor-dev \
-          libxinerama-dev
-    
-    - name: Build with CMake
+          libflac-dev
+
+    - name: Build simple version
       run: |
-        mkdir -p cmake-build
-        cd cmake-build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make -j$(nproc)
-    
-    - name: Build with Make (Alternative)
-      run: |
-        chmod +x build.sh
-        ./build.sh
-    
-    - name: Check built binaries
-      run: |
-        echo "📁 Built files:"
-        find . -name "kohksh" -type f | head -5
-        find . -name "*.so" -type f | head -5
-        find . -name "*.a" -type f | head -5
-    
-    - name: Upload Linux Binary
+        chmod +x build-simple.sh
+        ./build-simple.sh
+
+    - name: Upload Binary
       uses: actions/upload-artifact@v4
       with:
         name: kohksh-linux
         path: |
           kohksh
-          cmake-build/kohksh
+          kohksh-simple
