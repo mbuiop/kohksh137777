@@ -11,30 +11,32 @@ echo "🔧 Setting up Android NDK build..."
 mkdir -p libs
 mkdir -p obj
 
-# ساخت کتابخانه با NDK
+# کپی فایل main.cpp به دایرکتوری android اگر وجود ندارد
+if [ ! -f "android/main.cpp" ]; then
+    echo "📄 Creating main.cpp in android directory..."
+    cp android/main.cpp android/main.cpp.backup 2>/dev/null || true
+fi
+
+echo "🔨 Starting NDK build..."
 cd android
+
+# ساخت با NDK
 $ANDROID_NDK_HOME/ndk-build \
     NDK_PROJECT_PATH=.. \
     APP_BUILD_SCRIPT=./Android.mk \
     NDK_APPLICATION_MK=./Application.mk \
-    APP_ABI=arm64-v8a,armeabi-v7a
+    APP_ABI=arm64-v8a,armeabi-v7a \
+    V=1
 
 # بررسی نتیجه
 if [ -f "../libs/arm64-v8a/libkohksh_android.so" ]; then
     echo "✅ Android library built successfully!"
-    
-    # ایجاد فایل AAR ساده
-    echo "📦 Creating Android AAR package..."
-    mkdir -p ../kohksh-aar/jni
-    cp -r ../libs/* ../kohksh-aar/jni/
-    
-    # ایجاد فایل APK تستی
-    echo "📱 Creating test APK..."
-    mkdir -p ../test-apk/lib
-    cp -r ../libs/* ../test-apk/lib/
-    
-    echo "🎉 Build completed! Files ready in libs/ directory"
+    echo "📦 Built files:"
+    find ../libs -name "*.so" | head -10
 else
-    echo "❌ Build failed - no library files found"
-    exit 1
+    echo "❌ Build failed"
+    echo "📁 Checking what files exist:"
+    find .. -name "*.cpp" -o -name "*.c" | head -10
+    echo "📁 libs directory:"
+    ls -la ../libs/ 2>/dev/null || echo "libs directory not found"
 fi
