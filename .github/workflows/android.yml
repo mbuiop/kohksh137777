@@ -1,4 +1,4 @@
-name: Build Real Android APK
+name: Build Working Android APK
 
 on: [push, workflow_dispatch]
 
@@ -8,26 +8,30 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install tools
+    - name: Install required tools
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           wget curl python3 openjdk-11-jdk
           
-    - name: Build REAL APK
+    - name: Build WORKING APK
       run: |
-        chmod +x build-real-apk.sh
-        ./build-real-apk.sh
+        chmod +x build-working-apk.sh
+        ./build-working-apk.sh
         
-    - name: Create DIRECT APK (without ZIP)
+    - name: Test APK validity
       run: |
-        # ایجاد فایل APK مستقیم بدون ZIP
-        cp kohksh-real.apk kohksh-direct.apk
-        echo "✅ Direct APK created"
+        chmod +x test-installation.sh
+        ./test-installation.sh
         
-    - name: Upload DIRECT APK
+    - name: Show alternative solutions
+      run: |
+        chmod +x alternative-solutions.sh
+        ./alternative-solutions.sh
+        
+    - name: Upload WORKING APK
       uses: actions/upload-artifact@v4
       with:
-        name: kohksh-direct-apk
-        path: kohksh-direct.apk
+        name: kohksh-working-apk
+        path: kohksh-working.apk
         retention-days: 30
