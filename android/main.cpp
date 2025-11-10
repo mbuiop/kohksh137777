@@ -1,84 +1,74 @@
 #include <jni.h>
 #include <string>
 #include <android/log.h>
-#include <android/native_activity.h>
-#include <android/asset_manager.h>
 
-// شامل کردن SDL
+// شامل کردن SDL ساده شده
 #include "SDL.h"
-#include "SDL_main.h"
 
-#define LOG_TAG "KohkshSDL"
+#define LOG_TAG "KohkshAndroid"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-extern "C" {
-
-// تابع اصلی SDL
-int main(int argc, char *argv[]) {
-    LOGI("Kohksh SDL Application Starting...");
+// تابع اصلی برنامه
+void kohksh_main() {
+    LOGI("🚀 Kohksh Android Application Started!");
     
     // مقداردهی اولیه SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
-        LOGE("SDL could not initialize! SDL_Error: %s", SDL_GetError());
-        return -1;
+    if (SDL_Init(0) < 0) {
+        LOGE("SDL init failed: %s", SDL_GetError());
+        return;
     }
     
-    LOGI("SDL initialized successfully!");
+    LOGI("✅ SDL initialized successfully");
     
     // ایجاد پنجره
-    SDL_Window* window = SDL_CreateWindow(
-        "Kohksh Android",
-        SDL_WINDOWPOS_UNDEFINED,
-        SDL_WINDOWPOS_UNDEFINED,
-        800, 600,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
-    );
-    
+    SDL_Window* window = SDL_CreateWindow("Kohksh", 0, 0, 800, 600, 0);
     if (!window) {
-        LOGE("Window could not be created! SDL_Error: %s", SDL_GetError());
+        LOGE("Window creation failed: %s", SDL_GetError());
         SDL_Quit();
-        return -1;
+        return;
     }
     
-    LOGI("Window created successfully!");
+    LOGI("✅ Window created successfully");
     
     // حلقه اصلی برنامه
-    bool quit = false;
-    SDL_Event e;
-    
-    while (!quit) {
-        while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_QUIT) {
-                quit = true;
+    bool running = true;
+    while (running) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == 0x100) { // SDL_QUIT
+                running = false;
             }
         }
         
-        // اینجا کد رندر و منطق بازی شما قرار می‌گیرد
-        SDL_Delay(16); // ~60 FPS
+        // اینجا کد اصلی برنامه شما قرار می‌گیرد
+        LOGI("Kohksh is running...");
+        
+        SDL_Delay(1000); // 1 ثانیه تأخیر
     }
     
     SDL_DestroyWindow(window);
     SDL_Quit();
     
-    LOGI("Kohksh SDL Application Exited");
-    return 0;
+    LOGI("👋 Kohksh Android Application Exited");
 }
+
+extern "C" {
 
 JNIEXPORT void JNICALL
 Java_com_kohksh_MainActivity_startKohksh(JNIEnv *env, jobject thiz) {
-    LOGI("Starting Kohksh SDL from Java...");
-    
-    // اجرای تابع اصلی در یک thread جدید
-    std::thread main_thread([]() {
-        main(0, nullptr);
-    });
-    main_thread.detach();
+    LOGI("🎯 Starting Kohksh from Java...");
+    kohksh_main();
 }
 
 JNIEXPORT jstring JNICALL
 Java_com_kohksh_MainActivity_getVersion(JNIEnv *env, jobject thiz) {
-    return env->NewStringUTF("Kohksh SDL Android v1.0.0");
+    return env->NewStringUTF("Kohksh Android v1.0.0 - Built with SDL");
+}
+
+JNIEXPORT void JNICALL
+Java_com_kohksh_MainActivity_nativeInit(JNIEnv *env, jobject thiz) {
+    LOGI("🔧 Native initialization called");
 }
 
 }
