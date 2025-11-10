@@ -1,4 +1,4 @@
-name: Build Android
+name: Build Android APK
 
 on: [push, workflow_dispatch]
 
@@ -10,32 +10,31 @@ jobs:
     
     - name: Setup Android NDK
       uses: android-actions/setup-android@v2
-      with:
-        ndk-version: '25.2.9519653'
-    
-    - name: Debug NDK paths
-      run: |
-        echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
-        echo "NDK path contents:"
-        ls -la $ANDROID_NDK_HOME/ || echo "NDK not found"
-        which ndk-build || echo "ndk-build not in PATH"
     
     - name: Build Android Library
       run: |
         chmod +x android-build.sh
         ./android-build.sh
     
-    - name: Check build results
+    - name: Create APK Package
       run: |
-        echo "📁 Build output:"
-        find . -name "*.so" -type f | head -20 || echo "No .so files found"
-        find . -name "libs" -type d | head -5 || echo "No libs directories found"
+        chmod +x create-apk.sh
+        ./create-apk.sh
     
-    - name: Upload Android Library
+    - name: List output files
+      run: |
+        echo "📁 Generated files:"
+        find . -name "*.so" -type f | head -10
+        find . -name "*.apk" -type f | head -10
+        ls -la libs/ || echo "No libs directory"
+        ls -la *.apk 2>/dev/null || echo "No APK files"
+    
+    - name: Upload APK and Libraries
       uses: actions/upload-artifact@v4
       with:
-        name: kohksh-android
+        name: kohksh-android-package
         path: |
+          *.apk
           libs/
-          android/libs/
+          kohksh-aar/
         retention-days: 30
