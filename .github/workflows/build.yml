@@ -1,4 +1,4 @@
-name: Build Kohksh
+name: Build Kohksh for Linux
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install dependencies
+    - name: Install ALL dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -17,21 +17,49 @@ jobs:
           automake \
           libtool \
           pkg-config \
-          cmake
+          cmake \
+          # کتابخانه‌های گرافیکی
+          libsdl2-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libglew-dev \
+          # کتابخانه‌های صوتی
+          libopenal-dev \
+          libalut-dev \
+          libvorbis-dev \
+          libflac-dev \
+          # کتابخانه‌های چندرسانه‌ای
+          libavcodec-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libswscale-dev \
+          # کتابخانه‌های سیستم
+          libx11-dev \
+          libxrandr-dev \
+          libxi-dev \
+          libxcursor-dev \
+          libxinerama-dev
     
     - name: Build with CMake
       run: |
         mkdir -p cmake-build
         cd cmake-build
-        cmake ..
+        cmake .. -DCMAKE_BUILD_TYPE=Release
         make -j$(nproc)
     
-    - name: Build with Make
+    - name: Build with Make (Alternative)
       run: |
         chmod +x build.sh
         ./build.sh
     
-    - name: Upload Binary
+    - name: Check built binaries
+      run: |
+        echo "📁 Built files:"
+        find . -name "kohksh" -type f | head -5
+        find . -name "*.so" -type f | head -5
+        find . -name "*.a" -type f | head -5
+    
+    - name: Upload Linux Binary
       uses: actions/upload-artifact@v4
       with:
         name: kohksh-linux
