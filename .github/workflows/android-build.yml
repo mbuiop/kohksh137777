@@ -10,16 +10,32 @@ jobs:
     
     - name: Setup Android NDK
       uses: android-actions/setup-android@v2
+      with:
+        ndk-version: '25.2.9519653'
+    
+    - name: Debug NDK paths
+      run: |
+        echo "ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
+        echo "NDK path contents:"
+        ls -la $ANDROID_NDK_HOME/ || echo "NDK not found"
+        which ndk-build || echo "ndk-build not in PATH"
     
     - name: Build Android Library
       run: |
         chmod +x android-build.sh
         ./android-build.sh
     
+    - name: Check build results
+      run: |
+        echo "📁 Build output:"
+        find . -name "*.so" -type f | head -20 || echo "No .so files found"
+        find . -name "libs" -type d | head -5 || echo "No libs directories found"
+    
     - name: Upload Android Library
       uses: actions/upload-artifact@v4
       with:
         name: kohksh-android
         path: |
-          android-build/
           libs/
+          android/libs/
+        retention-days: 30
