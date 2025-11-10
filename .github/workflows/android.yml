@@ -1,0 +1,23 @@
+name: Build Android APK
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+    
+    - name: Build Android APK
+      run: |
+        chmod +x build-android-apk.sh
+        ./build-android-apk.sh
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-android
+        path: kohksh-android.apk
