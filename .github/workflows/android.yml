@@ -11,13 +11,31 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
     
-    - name: Build Android APK
+    - name: Install required tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zip
+        
+    - name: Build Signed APK
       run: |
         chmod +x build-android-apk.sh
         ./build-android-apk.sh
-    
+        
+    - name: List all files
+      run: |
+        echo "📁 All files in workspace:"
+        find . -name "*.apk" -type f
+        echo "📁 Root directory:"
+        ls -la
+        echo "📁 Current directory:"
+        pwd
+        
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: kohksh-android
-        path: kohksh-android.apk
+        path: |
+          *.apk
+          kohksh-*.apk
+          ./kohksh-*.apk
+        if-no-files-found: error
