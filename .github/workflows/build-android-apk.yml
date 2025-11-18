@@ -1,0 +1,492 @@
+name: 🔥 Ultimate Android Build - Kohksh Heavy Game
+on: 
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  ultimate-android-build:
+    name: 🏗️ Ultimate APK Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      GRADLE_OPTS: -Xmx4g -XX:MaxPermSize=1024m -Dfile.encoding=UTF-8
+    
+    steps:
+    # مرحله 1: آماده‌سازی حرفه‌ای
+    - name: 🔄 Checkout Code with Full History
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: 🛠️ Setup Ultimate Android Environment
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 34
+        build-tools: 34.0.0
+        ndk: 25.1.8937393
+        cmake: 3.22.1
+        extra-sdk-components: |
+          platforms;android-34
+          build-tools;34.0.0
+          platform-tools
+          ndk;25.1.8937393
+          cmake;3.22.1
+          patcher;v4
+        add-to-path: true
+    
+    - name: 💾 Setup Mega Caching System
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          ~/.android/build-cache
+          $ANDROID_SDK_ROOT/.downloadIntermediates
+          $ANDROID_SDK_ROOT/build-cache
+        key: ${{ runner.os }}-ultimate-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-ultimate-
+    
+    # مرحله 2: پردازش فایل‌های سنگین بازی
+    - name: 📦 Process Heavy Game Assets & Code
+      run: |
+        set -e
+        echo "🎮 Processing Kohksh Ultimate Game Engine..."
+        
+        # ایجاد ساختار حرفه‌ای کامل
+        mkdir -p app/src/main/java/com/kohksh/ultimate/engine/
+        mkdir -p app/src/main/cpp/core/engine/
+        mkdir -p app/src/main/cpp/core/physics/
+        mkdir -p app/src/main/cpp/core/graphics/
+        mkdir -p app/src/main/cpp/core/audio/
+        mkdir -p app/src/main/cpp/game/entities/
+        mkdir -p app/src/main/cpp/game/levels/
+        mkdir -p app/src/main/cpp/game/ai/
+        mkdir -p app/src/main/cpp/utils/
+        mkdir -p app/src/main/cpp/platform/
+        mkdir -p app/src/main/assets/shaders/opengl/
+        mkdir -p app/src/main/assets/shaders/vulkan/
+        mkdir -p app/src/main/assets/textures/hd/
+        mkdir -p app/src/main/assets/textures/compressed/
+        mkdir -p app/src/main/assets/sounds/music/
+        mkdir -p app/src/main/assets/sounds/effects/
+        mkdir -p app/src/main/assets/fonts/
+        mkdir -p app/src/main/res/values/
+        mkdir -p app/src/main/res/values-fa/
+        mkdir -p app/src/main/jniLibs/arm64-v8a/
+        mkdir -p app/src/main/jniLibs/armeabi-v7a/
+        mkdir -p app/src/main/jniLibs/x86_64/
+        mkdir -p app/src/main/jniLibs/x86/
+        
+        echo "📁 Scanning and copying heavy game files..."
+        
+        # سیستم کپی هوشمند فایل‌های بازی
+        copy_game_files() {
+          local source_dir=$1
+          local target_dir=$2
+          local file_type=$3
+          
+          if [ -d "$source_dir" ]; then
+            find "$source_dir" -name "*.$file_type" -exec cp --parents {} "$target_dir" \; 2>/dev/null || true
+            local count=$(find "$target_dir" -name "*.$file_type" | wc -l)
+            echo "✅ $file_type files from $source_dir: $count files"
+          else
+            echo "⚠️ Directory $source_dir not found"
+          fi
+        }
+        
+        # کپی فایل اصلی
+        if [ -f "Main.cpp" ]; then
+          cp "Main.cpp" app/src/main/cpp/core/engine/main.cpp
+          echo "✅ Main.cpp copied to engine core"
+        fi
+        
+        # کپی موتور بازی
+        copy_game_files "Engine" "app/src/main/cpp/core" "cpp"
+        copy_game_files "Engine" "app/src/main/cpp/core" "c"
+        copy_game_files "Engine" "app/src/main/cpp/core" "h"
+        copy_game_files "Engine" "app/src/main/cpp/core" "hpp"
+        
+        # کپی فایل‌های بازی
+        copy_game_files "Game" "app/src/main/cpp/game" "cpp"
+        copy_game_files "Game" "app/src/main/cpp/game" "c"
+        copy_game_files "Game" "app/src/main/cpp/game" "h"
+        copy_game_files "Game" "app/src/main/cpp/game" "hpp"
+        
+        # پردازش کتابخانه SDL2
+        if [ -f "SDL2.zip" ]; then
+          echo "📦 Extracting and processing SDL2 ultimate library..."
+          unzip -q "SDL2.zip" -d sdl-ultimate-extracted/
+          
+          # پردازش کتابخانه‌های native
+          process_native_libs() {
+            local arch=$1
+            find sdl-ultimate-extracted/ -name "libSDL2.so" -exec cp {} "app/src/main/jniLibs/$arch/" \; 2>/dev/null || true
+            find sdl-ultimate-extracted/ -name "libSDL2_image.so" -exec cp {} "app/src/main/jniLibs/$arch/" \; 2>/dev/null || true
+            find sdl-ultimate-extracted/ -name "libSDL2_mixer.so" -exec cp {} "app/src/main/jniLibs/$arch/" \; 2>/dev/null || true
+            find sdl-ultimate-extracted/ -name "libSDL2_ttf.so" -exec cp {} "app/src/main/jniLibs/$arch/" \; 2>/dev/null || true
+            echo "✅ $arch libraries: $(find app/src/main/jniLibs/$arch/ -name '*.so' | wc -l) files"
+          }
+          
+          process_native_libs "arm64-v8a"
+          process_native_libs "armeabi-v7a"
+          process_native_libs "x86_64"
+          process_native_libs "x86"
+          
+          # کپی فایل‌های هدر
+          find sdl-ultimate-extracted/ -name "*.h" -exec cp --parents {} app/src/main/cpp/ \; 2>/dev/null || true
+          echo "✅ SDL2 headers copied"
+        fi
+        
+        # آمار نهایی
+        echo "📊 ULTIMATE BUILD STATISTICS:"
+        echo "=============================="
+        find app/src/main/cpp/ -name "*.cpp" -o -name "*.c" | wc -l | xargs echo "Total Source Files:"
+        find app/src/main/cpp/ -name "*.h" -o -name "*.hpp" | wc -l | xargs echo "Total Header Files:"
+        find app/src/main/jniLibs/ -name "*.so" | wc -l | xargs echo "Total Native Libraries:"
+        echo "Project Structure Ready for Ultimate Build!"
+    
+    # مرحله 3: ایجاد فایل‌های پیکربندی حرفه‌ای
+    - name: ⚙️ Create Ultimate Configuration Files
+      run: |
+        set -e
+        echo "⚙️ Creating ultimate professional configuration..."
+        
+        # ایجاد AndroidManifest.xml حرفه‌ای کامل
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
+            package="com.kohksh.ultimategame">
+            
+            <!-- مجوزهای پیشرفته برای بازی سنگین -->
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            
+            <!-- قابلیت‌های سخت‌افزاری پیشرفته -->
+            <uses-feature android:glEsVersion="0x00030002" android:required="true" />
+            <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
+            <uses-feature android:name="android.hardware.touchscreen" android:required="true" />
+            <uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="true" />
+            
+            <application
+                android:allowBackup="true"
+                android:label="@string/app_name_ultimate"
+                android:theme="@style/UltimateAppTheme"
+                android:hardwareAccelerated="true"
+                android:largeHeap="true"
+                tools:targetApi="31">
+                
+                <activity
+                    android:name=".UltimateMainActivity"
+                    android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
+                    android:exported="true"
+                    android:launchMode="singleTop"
+                    android:screenOrientation="sensorLandscape"
+                    android:theme="@style/UltimateAppTheme.Fullscreen"
+                    android:hardwareAccelerated="true"
+                    tools:ignore="LockedOrientationActivity">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                    
+                    <meta-data
+                        android:name="android.app.lib_name"
+                        android:value="kohksh-ultimate-engine" />
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+    # ایجاد MainActivity.java حرفه‌ای
+    - name: 💻 Create Ultimate Java Code
+      run: |
+        cat > app/src/main/java/com/kohksh/ultimategame/UltimateMainActivity.java << 'EOF'
+        package com.kohksh.ultimategame;
+
+        import android.app.*;
+        import android.os.*;
+        import android.view.*;
+        import android.content.*;
+        import android.util.*;
+
+        public class UltimateMainActivity extends Activity {
+            
+            private static final String TAG = "KohkshUltimateGame";
+            
+            // Load native libraries
+            static {
+                System.loadLibrary("kohksh-ultimate-engine");
+                System.loadLibrary("sdl2");
+            }
+            
+            // Native methods for heavy game engine
+            public native boolean initUltimateEngine();
+            public native void startUltimateGameLoop();
+            public native void shutdownUltimateEngine();
+            public native void onUltimateSurfaceCreated();
+            public native void onUltimateSurfaceChanged(int width, int height);
+            
+            private SurfaceView ultimateGameSurface;
+            private boolean engineInitialized = false;
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                
+                // Ultimate fullscreen setup
+                requestWindowFeature(Window.FEATURE_NO_TITLE);
+                getWindow().setFlags(
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN
+                );
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                
+                createGameSurface();
+                
+                Log.i(TAG, "Kohksh Ultimate Game Activity created successfully");
+            }
+            
+            private void createGameSurface() {
+                ultimateGameSurface = new SurfaceView(this) {
+                    private final SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
+                        @Override
+                        public void surfaceCreated(SurfaceHolder holder) {
+                            Log.i(TAG, "Ultimate Game Surface created");
+                            onUltimateSurfaceCreated();
+                            initializeEngine();
+                        }
+                        
+                        @Override
+                        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                            Log.i(TAG, "Surface changed: " + width + "x" + height);
+                            onUltimateSurfaceChanged(width, height);
+                        }
+                        
+                        @Override
+                        public void surfaceDestroyed(SurfaceHolder holder) {
+                            Log.i(TAG, "Surface destroyed");
+                        }
+                    };
+                    
+                    {
+                        getHolder().addCallback(surfaceCallback);
+                        setFocusable(true);
+                        setFocusableInTouchMode(true);
+                    }
+                };
+                
+                setContentView(ultimateGameSurface);
+            }
+            
+            private void initializeEngine() {
+                if (!engineInitialized) {
+                    new Thread(() -> {
+                        boolean success = initUltimateEngine();
+                        
+                        if (success) {
+                            engineInitialized = true;
+                            startUltimateGameLoop();
+                            Log.i(TAG, "Ultimate game engine initialized successfully");
+                        } else {
+                            Log.e(TAG, "Failed to initialize game engine");
+                        }
+                    }).start();
+                }
+            }
+            
+            @Override
+            protected void onPause() {
+                super.onPause();
+            }
+            
+            @Override
+            protected void onDestroy() {
+                shutdownUltimateEngine();
+                super.onDestroy();
+                Log.i(TAG, "Ultimate game activity destroyed");
+            }
+        }
+        EOF
+
+    # ایجاد فایل‌های resource
+    - name: 🎨 Create Ultimate Resources
+      run: |
+        # ایجاد strings.xml
+        cat > app/src/main/res/values/strings.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name_ultimate">Kohksh Ultimate Game</string>
+            <string name="game_title">Kohksh Engine v3.0</string>
+            <string name="loading_message">Initializing Ultimate Game Engine…</string>
+        </resources>
+        EOF
+        
+        # ایجاد styles.xml
+        cat > app/src/main/res/values/styles.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="UltimateAppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+                <item name="colorPrimary">@color/colorPrimary</item>
+                <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+                <item name="colorAccent">@color/colorAccent</item>
+            </style>
+            
+            <style name="UltimateAppTheme.Fullscreen" parent="UltimateAppTheme">
+                <item name="android:windowNoTitle">true</item>
+                <item name="android:windowActionBar">false</item>
+                <item name="android:windowFullscreen">true</item>
+                <item name="android:windowContentOverlay">@null</item>
+            </style>
+        </resources>
+        EOF
+        
+        # ایجاد colors.xml
+        cat > app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="colorPrimary">#2E7D32</color>
+            <color name="colorPrimaryDark">#1B5E20</color>
+            <color name="colorAccent">#FF6D00</color>
+        </resources>
+        EOF
+
+    # ایجاد CMakeLists.txt حرفه‌ای
+    - name: 🔧 Create Ultimate CMake Configuration
+      run: |
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        project("kohksh-ultimate-engine")
+        
+        set(CMAKE_CXX_STANDARD 17)
+        set(CMAKE_CXX_STANDARD_REQUIRED ON)
+        
+        # فلگ‌های بهینه‌سازی
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -ffast-math")
+        
+        # پیدا کردن کتابخانه‌های سیستم
+        find_library(log-lib log)
+        find_library(android-lib android)
+        find_library(glesv2-lib GLESv2)
+        
+        # جمع‌آوری تمام فایل‌های منبع
+        file(GLOB_RECURSE ENGINE_SOURCES "core/*.cpp" "core/*.c")
+        file(GLOB_RECURSE GAME_SOURCES "game/*.cpp" "game/*.c")
+        
+        # کتابخانه اصلی موتور
+        add_library(kohksh-ultimate-engine SHARED
+            ${ENGINE_SOURCES}
+            ${GAME_SOURCES}
+        )
+        
+        # include directories
+        target_include_directories(kohksh-ultimate-engine PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        
+        # لینک کتابخانه‌ها
+        target_link_libraries(kohksh-ultimate-engine
+            ${log-lib}
+            ${android-lib}
+            ${glesv2-lib}
+        )
+        EOF
+
+    # ایجاد Gradle configuration حرفه‌ای
+    - name: 📦 Create Ultimate Gradle Setup
+      run: |
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            namespace 'com.kohksh.ultimategame'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.kohksh.ultimategame"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "3.0.0"
+                
+                externalNativeBuild {
+                    cmake {
+                        cppFlags '-std=c++17 -O2'
+                        arguments "-DANDROID_STL=c++_shared"
+                    }
+                }
+                
+                ndk {
+                    abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+                }
+            }
+            
+            buildTypes {
+                debug {
+                    debuggable true
+                    jniDebuggable true
+                    minifyEnabled false
+                }
+            }
+            
+            externalNativeBuild {
+                cmake {
+                    path "src/main/cpp/CMakeLists.txt"
+                    version "3.22.1"
+                }
+            }
+        }
+        EOF
+        
+        # ایجاد فایل‌های گرادل اصلی
+        echo "include ':app'" > settings.gradle
+        
+        cat > build.gradle << 'EOF'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.0.0'
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+
+    # مرحله نهایی: ساخت
+    - name: 🏗️ Build Ultimate APK
+      run: |
+        echo "🏗️ Starting ultimate APK build..."
+        chmod +x gradlew
+        ./gradlew clean assembleDebug --stacktrace --no-daemon
+        
+    - name: 📱 Upload Ultimate APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-ultimate-game
+        path: app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
