@@ -1,0 +1,83 @@
+name: 🎯 Build APK - No Gradlew
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: ☕ Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        
+    - name: 🛠️ Create APK Project
+      run: |
+        echo "🚀 Creating APK project WITHOUT gradlew..."
+        
+        # ایجاد ساختار پروژه
+        mkdir -p app/src/main/java/com/kohksh/game/
+        mkdir -p app/src/main/res/values/
+        
+        # ایجاد AndroidManifest.xml
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.kohksh.game">
+            <application android:label="Kohksh Game">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+        # ایجاد MainActivity.java
+        cat > app/src/main/java/com/kohksh/game/MainActivity.java << 'EOF'
+        package com.kohksh.game;
+        import android.app.Activity;
+        import android.os.Bundle;
+        
+        public class MainActivity extends Activity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+            }
+        }
+        EOF
+        
+        # ایجاد build.gradle
+        cat > app/build.gradle << 'EOF'
+        plugins { id 'com.android.application' }
+        android {
+            compileSdk 30
+            defaultConfig {
+                applicationId "com.kohksh.game"
+                minSdk 21
+                targetSdk 30
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+        EOF
+        
+        echo "include ':app'" > settings.gradle
+        
+    - name: ⚡ Build با Gradle سیستم
+      run: |
+        echo "🔨 Building with system gradle..."
+        gradle assembleDebug --stacktrace --no-daemon
+        
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-final-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
