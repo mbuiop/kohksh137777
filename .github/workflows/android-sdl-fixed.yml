@@ -1,0 +1,118 @@
+name: Build Kohksh SDL APK
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Download SDL2
+      run: |
+        # دانلود SDL2
+        wget https://www.libsdl.org/release/SDL2-2.28.5.zip
+        unzip -q SDL2-2.28.5.zip
+        
+        # ایجاد پوشه‌های مورد نیاز
+        mkdir -p jni/SDL2/include
+        mkdir -p jni/SDL2/libs/arm64-v8a
+        mkdir -p jni/SDL2/libs/armeabi-v7a  
+        mkdir -p jni/SDL2/libs/x86_64
+        
+        # کپی فایل‌های هدر
+        cp -r SDL2-2.28.5/include/* jni/SDL2/include/
+        
+        # دانلود کتابخانه‌های از پیش کامپایل شده SDL2
+        wget -q https://github.com/libsdl-org/SDL/releases/download/release-2.28.5/SDL2-2.28.5-android.zip
+        unzip -q SDL2-2.28.5-android.zip -d sdl-android
+        
+        # کپی کتابخانه‌ها
+        cp sdl-android/SDL2-2.28.5-android/lib/arm64-v8a/libSDL2.so jni/SDL2/libs/arm64-v8a/
+        cp sdl-android/SDL2-2.28.5-android/lib/armeabi-v7a/libSDL2.so jni/SDL2/libs/armeabi-v7a/
+        cp sdl-android/SDL2-2.28.5-android/lib/x86_64/libSDL2.so jni/SDL2/libs/x86_64/
+        
+    - name: Create CMakeLists
+      run: |
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        project("kohksh")
+        
+        set(CMAKE_CXX_STANDARD 17)
+        
+        find_library(log-lib log)
+        find_library(android-lib android)
+        
+        add_library(kohksh SHARED
+            main.cpp
+        )
+        
+        target_include_directories(kohksh PRIVATE
+            ${CMAKE_SOURCE_DIR}/../../../../jni/SDL2/include
+        )
+        
+        target_link_libraries(kohksh
+            ${log-lib}
+            ${android-lib}
+        )
+        EOF
+        
+    - name: Create necessary files
+      run: |
+        # ایجاد فایل‌های ضروری
+        mkdir -p app/src/main/java/com/kohksh/
+        
+        cat > app/src/main/java/com/kohksh/MainActivity.java << 'EOF'
+        package com.kohksh;
+        import android.app.*;
+        import android.os.*;
+        
+        public class MainActivity extends Activity {
+            static { System.loadLibrary("kohksh"); }
+            public native void startKohksh();
+            public native String getVersion();
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                startKohksh();
+            }
+        }
+        EOF
+        
+        cat > app/build.gradle << 'EOF'
+        plugins { id 'com.android.application' }
+        android {
+            namespace 'com.kohksh'
+            compileSdk 34
+            defaultConfig {
+                applicationId "com.kohksh"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+                externalNativeBuild {
+                    cmake { cppFlags '-std=c++17' }
+                }
+            }
+            externalNativeBuild {
+                cmake { path "src/main/cpp/CMakeLists.txt" }
+            }
+        }
+        EOF
+        
+    - name: Build APK
+      run: |
+        chmod +x ./gradlew
+        ./gradlew assembleDebug --stacktrace
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-sdl-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
