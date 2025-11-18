@@ -1,45 +1,14 @@
-name: 🔥 Ultimate Android Build - Kohksh Heavy Game
-on: 
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-
-jobs:
-  ultimate-android-build:
-    name: 🏗️ Ultimate APK Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    
-    env:
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
-      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-      GRADLE_OPTS: -Xmx4g -XX:MaxPermSize=1024m -Dfile.encoding=UTF-8
-    
-    steps:
-    # مرحله 1: آماده‌سازی حرفه‌ای
-    - name: 🔄 Checkout Code with Full History
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        submodules: recursive
-        
     - name: 🛠️ Setup Ultimate Android Environment
       uses: android-actions/setup-android@v3
       with:
-        api-level: 34
-        build-tools: 34.0.0
-        ndk: 25.1.8937393
-        cmake: 3.22.1
-        extra-sdk-components: |
+        accept-android-sdk-licenses: true
+        packages: |
+          platform-tools
           platforms;android-34
           build-tools;34.0.0
-          platform-tools
           ndk;25.1.8937393
           cmake;3.22.1
-          patcher;v4
-        add-to-path: true
+
     
     - name: 💾 Setup Mega Caching System
       uses: actions/cache@v3
