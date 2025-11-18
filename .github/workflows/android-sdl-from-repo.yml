@@ -1,0 +1,221 @@
+name: Build Kohksh with Your SDL
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code (with SDL2)
+      uses: actions/checkout@v4
+      
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Extract Your SDL2
+      run: |
+        # اکسترکت کردن SDL2.zip شما
+        unzip -q SDL2.zip -d sdl-extracted/
+        
+        # ایجاد ساختار پوشه
+        mkdir -p jni/SDL2/include
+        mkdir -p jni/SDL2/libs/arm64-v8a
+        mkdir -p jni/SDL2/libs/armeabi-v7a
+        mkdir -p jni/SDL2/libs/x86_64
+        
+        # پیدا کردن و کپی فایل‌های SDL
+        find sdl-extracted/ -name "SDL.h" -exec cp {} jni/SDL2/include/ \;
+        find sdl-extracted/ -name "*.so" -exec cp {} jni/SDL2/libs/arm64-v8a/ 2>/dev/null \; || true
+        find sdl-extracted/ -name "*.so" -exec cp {} jni/SDL2/libs/armeabi-v7a/ 2>/dev/null \; || true
+        find sdl-extracted/ -name "*.so" -exec cp {} jni/SDL2/libs/x86_64/ 2>/dev/null \; || true
+        
+        # اگر فایل .so پیدا نشد، از پیش‌کامپایل شده استفاده می‌کنیم
+        if [ ! -f "jni/SDL2/libs/arm64-v8a/libSDL2.so" ]; then
+          echo "Using pre-built SDL2 libraries..."
+          # اینجا می‌تونیم از SDL2 از پیش کامپایل شده استفاده کنیم
+        fi
+        
+    - name: Create Project Files
+      run: |
+        # ایجاد CMakeLists.txt
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        project("kohksh")
+        
+        set(CMAKE_CXX_STANDARD 17)
+        
+        find_library(log-lib log)
+        find_library(android-lib android)
+        
+        # اضافه کردن SDL2
+        add_library(SDL2 SHARED IMPORTED)
+        
+        set_target_properties(SDL2 PROPERTIES
+            IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../../../../jni/SDL2/libs/${ANDROID_ABI}/libSDL2.so
+        )
+        
+        add_library(kohksh SHARED
+            main.cpp
+        )
+        
+        target_include_directories(kohksh PRIVATE
+            ${CMAKE_SOURCE_DIR}/../../../../jni/SDL2/include
+        )
+        
+        target_link_libraries(kohksh
+            SDL2
+            ${log-lib}
+            ${android-lib}
+        )
+        EOF
+        
+        # ایجاد MainActivity
+        mkdir -p app/src/main/java/com/kohksh/
+        cat > app/src/main/java/com/kohksh/MainActivity.java << 'EOF'
+        package com.kohksh;
+        import android.app.*;
+        import android.os.*;
+        
+        public class MainActivity extends Activity {
+            static { System.loadLibrary("kohksh"); }
+            public native void startKohksh();
+            public native String getVersion();
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(1000);
+                        startKohksh();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }).start();
+            }
+        }
+        EOF
+        
+    - name: Create Android Files
+      run: |
+        # ایجاد AndroidManifest.xml
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.kohksh">
+            
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+            
+            <application
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="Kohksh SDL Game"
+                android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+                
+                <activity
+                    android:name=".MainActivity"
+                    android:configChanges="orientation|keyboardHidden|screenSize"
+                    android:exported="true"
+                    android:label="Kohksh"
+                    android:screenOrientation="landscape">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+        # ایجاد build.gradle
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            namespace 'com.kohksh'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.kohksh"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+                
+                externalNativeBuild {
+                    cmake {
+                        cppFlags '-std=c++17 -frtti -fexceptions'
+                        arguments "-DANDROID_STL=c++_shared"
+                    }
+                }
+                
+                ndk {
+                    abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+                }
+            }
+            
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                }
+            }
+            
+            externalNativeBuild {
+                cmake {
+                    path "src/main/cpp/CMakeLists.txt"
+                    version "3.22.1"
+                }
+            }
+            
+            sourceSets {
+                main {
+                    jniLibs.srcDirs = ['../../../jni/SDL2/libs']
+                }
+            }
+        }
+        
+        dependencies {
+        }
+        EOF
+        
+        # ایجاد فایل‌های گرادل اصلی
+        echo "include ':app'" > settings.gradle
+        echo "org.gradle.jvmargs=-Xmx2048m" > gradle.properties
+        
+        cat > build.gradle << 'EOF'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.0.0'
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+    - name: Build APK
+      run: |
+        chmod +x ./gradlew
+        ./gradlew assembleDebug --stacktrace --info
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-with-sdl
+        path: app/build/outputs/apk/debug/app-debug.apk
