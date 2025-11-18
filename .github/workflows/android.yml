@@ -1,0 +1,125 @@
+name: 🎯 Build APK - Fixed Java
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: ☕ Setup Java Correctly
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: 🛠️ Setup Android with Fixed Java
+      run: |
+        echo "🔧 Setting up Android SDK with correct Java..."
+        # تنظیم JAVA_HOME درست
+        export JAVA_HOME=$JAVA_HOME_17_X64
+        echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+        
+        # دانلود و نصب Android SDK
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-11076708_latest.zip
+        mkdir -p android-sdk/cmdline-tools/latest/
+        mv cmdline-tools/* android-sdk/cmdline-tools/latest/
+        
+        # پذیرش لایسنس
+        yes | android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+        # نصب پلتفرم و build-tools
+        android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2"
+        
+        # اضافه کردن به PATH
+        echo "$GITHUB_WORKSPACE/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/android-sdk/build-tools/33.0.2" >> $GITHUB_PATH
+        
+    - name: 🎮 Create APK Project
+      run: |
+        echo "🚀 Creating APK project..."
+        
+        mkdir -p app/src/main/java/com/kohksh/game/
+        mkdir -p app/src/main/res/values/
+        
+        # AndroidManifest.xml
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.kohksh.game">
+            
+            <application android:label="Kohksh Game">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+        # MainActivity.java
+        cat > app/src/main/java/com/kohksh/game/MainActivity.java << 'EOF'
+        package com.kohksh.game;
+        import android.app.Activity;
+        import android.os.Bundle;
+        import android.widget.TextView;
+        
+        public class MainActivity extends Activity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                TextView tv = new TextView(this);
+                tv.setText("Kohksh Game - Success! 🎮\n\nYour game is ready!");
+                tv.setTextSize(18);
+                tv.setGravity(android.view.Gravity.CENTER);
+                setContentView(tv);
+            }
+        }
+        EOF
+        
+        # build.gradle ساده
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            compileSdk 33
+            namespace 'com.kohksh.game'
+            
+            defaultConfig {
+                applicationId "com.kohksh.game"
+                minSdk 21
+                targetSdk 33
+                versionCode 1
+                versionName "1.0"
+            }
+            
+            buildTypes {
+                debug {
+                    minifyEnabled false
+                }
+            }
+        }
+        EOF
+        
+        echo "include ':app'" > settings.gradle
+        
+    - name: ⚡ Build APK
+      run: |
+        echo "🔨 Building APK..."
+        # استفاده از gradle با Java درست
+        ./gradlew assembleDebug --stacktrace --no-daemon
+        
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-success-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
