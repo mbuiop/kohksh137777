@@ -1,0 +1,136 @@
+name: Build Android APK
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java and Android
+      uses: android-actions/setup-android@v3
+      
+    - name: Install Android Tools
+      run: |
+        echo "📦 Installing Android Build Tools..."
+        # نصب ابزارهای اندروید
+        sdkmanager "build-tools;34.0.0"
+        sdkmanager "platforms;android-34"
+        sdkmanager "cmake;3.22.1"
+        
+    - name: Extract SDL library
+      run: |
+        echo "📦 Extracting SDL2.zip..."
+        unzip -q "SDL2.zip" -d sdl-extracted/
+        
+    - name: Copy game files
+      run: |
+        echo "🎮 Copying game files..."
+        mkdir -p app/src/main/cpp/
+        
+        cp "Main.cpp" app/src/main/cpp/
+        cp -r "Engine/"* app/src/main/cpp/ 2>/dev/null || true
+        cp -r "Game/"* app/src/main/cpp/ 2>/dev/null || true
+        
+    - name: Create project files
+      run: |
+        mkdir -p app/src/main/java/com/kohksh/
+        mkdir -p app/src/main/res/
+        
+        # ایجاد MainActivity.java
+        cat > app/src/main/java/com/kohksh/MainActivity.java << 'EOF'
+        package com.kohksh;
+        import android.app.*;
+        import android.os.*;
+        
+        public class MainActivity extends Activity {
+            static { System.loadLibrary("kohksh"); }
+            public native void startKohksh();
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                new Thread(() -> {
+                    startKohksh();
+                }).start();
+            }
+        }
+        EOF
+        
+        # ایجاد AndroidManifest.xml
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.kohksh">
+            <application
+                android:allowBackup="true"
+                android:label="Kohksh Game">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+        # ایجاد CMakeLists.txt
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        project("kohksh")
+        set(CMAKE_CXX_STANDARD 17)
+        find_library(log-lib log)
+        add_library(kohksh SHARED main.cpp)
+        target_link_libraries(kohksh ${log-lib})
+        EOF
+        
+        # ایجاد app/build.gradle ساده
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            compileSdk 34
+            namespace 'com.kohksh'
+            
+            defaultConfig {
+                applicationId "com.kohksh"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+            
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+            
+            externalNativeBuild {
+                cmake {
+                    path "src/main/cpp/CMakeLists.txt"
+                }
+            }
+        }
+        EOF
+        
+        echo "include ':app'" > settings.gradle
+        
+    - name: Build with direct Gradle
+      run: |
+        echo "🔨 Building APK directly..."
+        gradle -p app assembleDebug --stacktrace --no-daemon
+        
+    - name: Find and Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-apk
+        path: app/build/outputs/apk/**/*.apk
