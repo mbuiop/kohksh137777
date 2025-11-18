@@ -1,0 +1,525 @@
+name: 🔥 Professional Android Build - Kohksh Heavy Game
+on: 
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  android-build:
+    name: 🏗️ Build Heavy Game APK
+    runs-on: ubuntu-latest-16-cores
+    timeout-minutes: 60
+    
+    strategy:
+      matrix:
+        android-platform: [34, 33, 32]
+        ndk-version: ['25.1.8937393', '25.0.8775105']
+    
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/${{ matrix.ndk-version }}
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      GRADLE_OPTS: -Xmx8g -XX:MaxPermSize=2048m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+    
+    steps:
+    # مرحله 1: آماده‌سازی محیط
+    - name: 🔄 Checkout Code with Submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🛠️ Setup Ultimate Android Environment
+      uses: android-actions/setup-android@v3
+      with:
+        ndk: ${{ matrix.ndk-version }}
+        cmake: 3.22.1
+        build-tools: 34.0.0
+        platform: android-${{ matrix.android-platform }}
+        extra-sdk-components: |
+          cmake;3.22.1
+          ndk;${{ matrix.ndk-version }}
+          platform-tools
+          emulator
+          patcher;v4
+        add-to-path: true
+    
+    - name: ⚡ Setup Mega Caching
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          ~/.android/cache
+          android-sdk/build-cache
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    # مرحله 2: پردازش فایل‌های سنگین
+    - name: 📦 Process Heavy Game Assets
+      run: |
+        set -e
+        
+        echo "🎮 Processing Kohksh Heavy Game Engine..."
+        
+        # ایجاد ساختار حرفه‌ای
+        mkdir -p app/src/main/java/com/kohksh/heavy/engine/
+        mkdir -p app/src/main/cpp/engine/
+        mkdir -p app/src/main/cpp/game/
+        mkdir -p app/src/main/cpp/physics/
+        mkdir -p app/src/main/cpp/graphics/
+        mkdir -p app/src/main/cpp/audio/
+        mkdir -p app/src/main/assets/shaders/
+        mkdir -p app/src/main/assets/textures/
+        mkdir -p app/src/main/assets/sounds/
+        mkdir -p app/src/main/res/values/
+        mkdir -p app/src/main/res/drawable-xxhdpi/
+        mkdir -p app/src/main/res/drawable-xxxhdpi/
+        mkdir -p app/src/main/res/mipmap-hdpi/
+        mkdir -p app/src/main/res/mipmap-xhdpi/
+        mkdir -p app/src/main/res/mipmap-xxhdpi/
+        mkdir -p app/src/main/res/mipmap-xxxhdpi/
+        mkdir -p app/src/main/jniLibs/arm64-v8a/
+        mkdir -p app/src/main/jniLibs/armeabi-v7a/
+        mkdir -p app/src/main/jniLibs/x86_64/
+        
+        # کپی فایل‌های سنگین بازی
+        echo "📁 Copying heavy game files..."
+        
+        # فایل اصلی
+        if [ -f "Main.cpp" ]; then
+          cp "Main.cpp" app/src/main/cpp/main.cpp
+          echo "✅ Main.cpp copied"
+        fi
+        
+        # موتور بازی
+        if [ -d "Engine" ]; then
+          find "Engine" -name "*.cpp" -exec cp {} app/src/main/cpp/engine/ \; 2>/dev/null || true
+          find "Engine" -name "*.h" -exec cp {} app/src/main/cpp/engine/ \; 2>/dev/null || true
+          find "Engine" -name "*.hpp" -exec cp {} app/src/main/cpp/engine/ \; 2>/dev/null || true
+          echo "✅ Engine files copied: $(find app/src/main/cpp/engine/ -name '*.cpp' -o -name '*.h' | wc -l) files"
+        fi
+        
+        # فایل‌های بازی
+        if [ -d "Game" ]; then
+          find "Game" -name "*.cpp" -exec cp {} app/src/main/cpp/game/ \; 2>/dev/null || true
+          find "Game" -name "*.h" -exec cp {} app/src/main/cpp/game/ \; 2>/dev/null || true
+          echo "✅ Game files copied: $(find app/src/main/cpp/game/ -name '*.cpp' -o -name '*.h' | wc -l) files"
+        fi
+        
+        # کتابخانه SDL2
+        if [ -f "SDL2.zip" ]; then
+          echo "📦 Extracting SDL2 heavy library..."
+          unzip -q "SDL2.zip" -d sdl-extracted/
+          
+          # پردازش کتابخانه‌های سنگین
+          find sdl-extracted/ -name "libSDL2.so" -exec cp {} app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
+          find sdl-extracted/ -name "libSDL2.so" -exec cp {} app/src/main/jniLibs/armeabi-v7a/ \; 2>/dev/null || true
+          find sdl-extracted/ -name "libSDL2.so" -exec cp {} app/src/main/jniLibs/x86_64/ \; 2>/dev/null || true
+          
+          # فایل‌های هدر
+          find sdl-extracted/ -name "SDL.h" -exec cp {} app/src/main/cpp/ \; 2>/dev/null || true
+          find sdl-extracted/ -name "*.h" -exec cp -r {} app/src/main/cpp/ 2>/dev/null \; || true
+          echo "✅ SDL2 library processed"
+        fi
+        
+        echo "📊 Total C++ files: $(find app/src/main/cpp/ -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | wc -l)"
+        echo "📊 Total library files: $(find app/src/main/jniLibs/ -name '*.so' | wc -l)"
+    
+    # مرحله 3: ایجاد فایل‌های پیکربندی حرفه‌ای
+    - name: ⚙️ Create Professional Configuration
+      run: |
+        set -e
+        
+        echo "⚙️ Creating professional build configuration..."
+        
+        # ایجاد AndroidManifest.xml حرفه‌ای
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
+            package="com.kohksh.heavygame">
+            
+            <!-- مجوزهای پیشرفته -->
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            
+            <!-- پشتیبانی از OpenGL ES 3.2 -->
+            <uses-feature android:glEsVersion="0x00030002" android:required="true" />
+            
+            <application
+                android:allowBackup="true"
+                android:fullBackupContent="@xml/backup_rules"
+                android:icon="@mipmap/ic_launcher"
+                android:label="@string/app_name"
+                android:theme="@style/AppTheme"
+                android:hardwareAccelerated="true"
+                android:largeHeap="true"
+                tools:targetApi="31">
+                
+                <activity
+                    android:name=".MainActivity"
+                    android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density"
+                    android:exported="true"
+                    android:launchMode="singleTop"
+                    android:screenOrientation="landscape"
+                    android:theme="@style/AppTheme.Fullscreen"
+                    android:hardwareAccelerated="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+        # ادامه در کامنت بعدی به دلیل محدودیت طول...
+            # ایجاد MainActivity.java حرفه‌ای
+    - name: 💻 Create Professional Java Code
+      run: |
+        cat > app/src/main/java/com/kohksh/heavygame/MainActivity.java << 'EOF'
+        package com.kohksh.heavygame;
+
+        import android.app.*;
+        import android.os.*;
+        import android.view.*;
+        import android.content.*;
+        import android.util.Log;
+
+        public class MainActivity extends Activity {
+            private static final String TAG = "KohkshHeavyGame";
+            
+            static {
+                System.loadLibrary("kohksh_heavy_engine");
+                System.loadLibrary("sdl2");
+                System.loadLibrary("openal");
+            }
+            
+            // توابع native برای موتور سنگین
+            public native void initHeavyEngine();
+            public native void startGameLoop();
+            public native void shutdownEngine();
+            public native void onSurfaceCreated();
+            public native void onSurfaceChanged(int width, int height);
+            public native void onDrawFrame();
+            public native void onTouchEvent(int action, float x, float y);
+            public native void onAccelerometer(float x, float y, float z);
+            public native void onPause();
+            public native void onResume();
+            
+            private SurfaceView gameSurfaceView;
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                
+                // حالت تمام صفحه
+                requestWindowFeature(Window.FEATURE_NO_TITLE);
+                getWindow().setFlags(
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN
+                );
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                
+                // ایجاد سطح گرافیکی
+                gameSurfaceView = new SurfaceView(this) {
+                    private final SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
+                        @Override
+                        public void surfaceCreated(SurfaceHolder holder) {
+                            Log.i(TAG, "Surface created - initializing heavy engine");
+                            onSurfaceCreated();
+                            new Thread(() -> {
+                                initHeavyEngine();
+                                startGameLoop();
+                            }).start();
+                        }
+                        
+                        @Override
+                        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                            onSurfaceChanged(width, height);
+                        }
+                        
+                        @Override
+                        public void surfaceDestroyed(SurfaceHolder holder) {
+                            shutdownEngine();
+                        }
+                    };
+                    
+                    {
+                        getHolder().addCallback(surfaceCallback);
+                        setFocusable(true);
+                        setFocusableInTouchMode(true);
+                    }
+                };
+                
+                setContentView(gameSurfaceView);
+                Log.i(TAG, "Kohksh Heavy Game Activity created successfully");
+            }
+            
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                onTouchEvent(event.getAction(), event.getX(), event.getY());
+                return true;
+            }
+            
+            @Override
+            protected void onPause() {
+                super.onPause();
+                onPause();
+            }
+            
+            @Override
+            protected void onResume() {
+                super.onResume();
+                onResume();
+            }
+            
+            @Override
+            protected void onDestroy() {
+                shutdownEngine();
+                super.onDestroy();
+            }
+        }
+        EOF
+
+    # ایجاد فایل‌های resource حرفه‌ای
+    - name: 🎨 Create Professional Resources
+      run: |
+        # ایجاد strings.xml
+        cat > app/src/main/res/values/strings.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name">Kohksh Heavy Game</string>
+            <string name="game_title">Kohksh Engine v2.0</string>
+            <string name="loading_message">Initializing Heavy Game Engine...</string>
+        </resources>
+        EOF
+        
+        # ایجاد styles.xml
+        mkdir -p app/src/main/res/values/
+        cat > app/src/main/res/values/styles.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+                <item name="colorPrimary">@color/colorPrimary</item>
+                <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+                <item name="colorAccent">@color/colorAccent</item>
+            </style>
+            
+            <style name="AppTheme.Fullscreen" parent="AppTheme">
+                <item name="android:windowNoTitle">true</item>
+                <item name="android:windowActionBar">false</item>
+                <item name="android:windowFullscreen">true</item>
+                <item name="android:windowContentOverlay">@null</item>
+            </style>
+        </resources>
+        EOF
+        
+        # ایجاد colors.xml
+        cat > app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="colorPrimary">#3F51B5</color>
+            <color name="colorPrimaryDark">#303F9F</color>
+            <color name="colorAccent">#FF4081</color>
+        </resources>
+        EOF
+        
+        # ایجاد آیکون‌های پیشفرض
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > app/src/main/res/mipmap-hdpi/ic_launcher.png
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > app/src/main/res/mipmap-xhdpi/ic_launcher.png
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+
+    # ایجاد CMakeLists.txt حرفه‌ای برای پروژه سنگین
+    - name: 🔧 Create Professional CMake Configuration
+      run: |
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        
+        # پروژه موتور سنگین
+        project("kohksh_heavy_engine")
+        
+        # تنظیمات پیشرفته کامپایلر
+        set(CMAKE_CXX_STANDARD 17)
+        set(CMAKE_CXX_STANDARD_REQUIRED ON)
+        set(CMAKE_CXX_EXTENSIONS OFF)
+        
+        # فلگ‌های بهینه‌سازی برای اندروید
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -fno-exceptions -fno-rtti")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
+        
+        # تنظیمات خاص معماری
+        if(ANDROID_ABI STREQUAL "arm64-v8a")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+crc+crypto")
+        elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv7-a -mfpu=neon -mfloat-abi=softfp")
+        endif()
+        
+        # پیدا کردن کتابخانه‌های سیستم
+        find_library(log-lib log)
+        find_library(android-lib android)
+        find_library(glesv2-lib GLESv2)
+        find_library(egl-lib EGL)
+        find_library(openal-lib OpenAL)
+        
+        # جمع‌آوری تمام فایل‌های منبع
+        file(GLOB_RECURSE ENGINE_SOURCES "engine/*.cpp" "engine/*.c")
+        file(GLOB_RECURSE GAME_SOURCES "game/*.cpp" "game/*.c") 
+        file(GLOB_RECURSE PHYSICS_SOURCES "physics/*.cpp" "physics/*.c")
+        file(GLOB_RECURSE GRAPHICS_SOURCES "graphics/*.cpp" "graphics/*.c")
+        file(GLOB_RECURSE AUDIO_SOURCES "audio/*.cpp" "audio/*.c")
+        
+        # کتابخانه اصلی موتور
+        add_library(kohksh_heavy_engine SHARED
+            main.cpp
+            ${ENGINE_SOURCES}
+            ${GAME_SOURCES}
+            ${PHYSICS_SOURCES}
+            ${GRAPHICS_SOURCES}
+            ${AUDIO_SOURCES}
+        )
+        
+        # include directories
+        target_include_directories(kohksh_heavy_engine PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/engine
+            ${CMAKE_CURRENT_SOURCE_DIR}/game
+            ${CMAKE_CURRENT_SOURCE_DIR}/physics
+            ${CMAKE_CURRENT_SOURCE_DIR}/graphics
+            ${CMAKE_CURRENT_SOURCE_DIR}/audio
+        )
+        
+        # لینک کتابخانه‌ها
+        target_link_libraries(kohksh_heavy_engine
+            ${log-lib}
+            ${android-lib}
+            ${glesv2-lib}
+            ${egl-lib}
+            ${openal-lib}
+        )
+        
+        # properties نهایی
+        set_target_properties(kohksh_heavy_engine PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../../../jniLibs/${ANDROID_ABI}
+        )
+        EOF
+
+    # ایجاد Gradle configuration حرفه‌ای
+    - name: 📦 Create Professional Gradle Setup
+      run: |
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+        
+        android {
+            namespace 'com.kohksh.heavygame'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.kohksh.heavygame"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "2.0.0"
+                
+                externalNativeBuild {
+                    cmake {
+                        cppFlags '-std=c++17 -O3 -ffast-math -fno-exceptions -fno-rtti'
+                        arguments "-DANDROID_STL=c++_shared",
+                                 "-DANDROID_CPP_FEATURES=rtti exceptions",
+                                 "-DANDROID_TOOLCHAIN=clang",
+                                 "-DANDROID_PLATFORM=android-24"
+                    }
+                }
+                
+                ndk {
+                    abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+                    debugSymbolLevel 'FULL'
+                }
+            }
+            
+            buildTypes {
+                debug {
+                    debuggable true
+                    jniDebuggable true
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+                release {
+                    minifyEnabled true
+                    shrinkResources true
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                    ndk {
+                        debugSymbolLevel 'FULL'
+                    }
+                }
+            }
+            
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+            
+            externalNativeBuild {
+                cmake {
+                    path "src/main/cpp/CMakeLists.txt"
+                    version "3.22.1"
+                }
+            }
+            
+            packagingOptions {
+                jniLibs {
+                    useLegacyPackaging true
+                }
+                resources {
+                    excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE']
+                }
+            }
+        }
+        
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.10.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+        }
+        EOF
+
+    # مرحله نهایی: ساخت حرفه‌ای
+    - name: 🏗️ Professional APK Build
+      run: |
+        echo "🏗️ Starting professional APK build..."
+        chmod +x gradlew
+        ./gradlew clean assembleDebug --build-cache --parallel --configure-on-demand --max-workers=4
+        
+    - name: 📱 Upload Professional APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-heavy-game-professional
+        path: |
+          app/build/outputs/apk/**/*.apk
+          app/build/outputs/native-debug-symbols/**/*.so
+        retention-days: 30
+        
+    - name: 📊 Build Analytics
+      run: |
+        echo "📊 BUILD ANALYTICS:"
+        echo "===================="
+        find app/src/main/cpp -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | wc -l | xargs echo "Total Source Files:"
+        find app/src/main/jniLibs -name "*.so" 2>/dev/null | wc -l | xargs echo "Native Libraries:"
+        du -sh app/build/outputs/apk/ | xargs echo "APK Size:"
+        echo "Build completed: $(date)"
