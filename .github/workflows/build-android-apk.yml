@@ -1,0 +1,145 @@
+name: Build Android APK
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Extract SDL library
+      run: |
+        echo "📦 Extracting SDL2.zip..."
+        unzip -q "SDL2.zip" -d sdl-extracted/
+        
+    - name: Copy ALL game files
+      run: |
+        echo "🎮 Copying ALL game components..."
+        mkdir -p app/src/main/cpp/
+        
+        cp "Main.cpp" app/src/main/cpp/
+        cp -r "Engine/"* app/src/main/cpp/ 2>/dev/null || true
+        cp -r "Game/"* app/src/main/cpp/ 2>/dev/null || true
+        
+    - name: Create Gradle Wrapper
+      run: |
+        echo "📝 Creating Gradle Wrapper..."
+        
+        # ایجاد فایل gradlew
+        cat > gradlew << 'EOF'
+        #!/bin/sh
+        # This is a simple gradle wrapper for GitHub Actions
+        echo "Using system gradle..."
+        gradle "$@"
+        EOF
+        
+        chmod +x ./gradlew
+        
+        # ایجاد gradle/wrapper/gradle-wrapper.properties
+        mkdir -p gradle/wrapper
+        cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        EOF
+        
+    - name: Create Android project
+      run: |
+        mkdir -p app/src/main/java/com/kohksh/
+        mkdir -p app/src/main/res/
+        
+        # ایجاد MainActivity.java
+        cat > app/src/main/java/com/kohksh/MainActivity.java << 'EOF'
+        package com.kohksh;
+        import android.app.*;
+        import android.os.*;
+        
+        public class MainActivity extends Activity {
+            static { System.loadLibrary("kohksh"); }
+            public native void startKohksh();
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                new Thread(() -> {
+                    startKohksh();
+                }).start();
+            }
+        }
+        EOF
+        
+        # ایجاد CMakeLists.txt
+        cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.18.1)
+        project("kohksh")
+        
+        set(CMAKE_CXX_STANDARD 17)
+        
+        find_library(log-lib log)
+        find_library(android-lib android)
+        
+        file(GLOB CPP_SOURCES *.cpp *.cxx *.cc)
+        
+        add_library(kohksh SHARED
+            ${CPP_SOURCES}
+        )
+        
+        target_link_libraries(kohksh
+            ${log-lib}
+            ${android-lib}
+        )
+        EOF
+        
+        # ایجاد app/build.gradle
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            namespace 'com.kohksh'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.kohksh"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+                
+                externalNativeBuild {
+                    cmake {
+                        cppFlags '-std=c++17'
+                    }
+                }
+            }
+            
+            externalNativeBuild {
+                cmake {
+                    path "src/main/cpp/CMakeLists.txt"
+                }
+            }
+        }
+        EOF
+        
+        # ایجاد settings.gradle
+        echo "include ':app'" > settings.gradle
+        
+    - name: Build APK with System Gradle
+      run: |
+        echo "🔨 Building APK..."
+        gradle assembleDebug --stacktrace --no-daemon
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: kohksh-game
+        path: app/build/outputs/apk/debug/app-debug.apk
